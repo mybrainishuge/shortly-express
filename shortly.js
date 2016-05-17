@@ -22,19 +22,30 @@ app.use(bodyParser.json());
 // Parse forms (signup/login)
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(__dirname + '/public'));
+app.use(session({secret: 'confidential'}));
 
 
-app.get('/', 
+app.get('/', util.checkUser,
 function(req, res) {
   res.render('index');
 });
 
-app.get('/create', 
+app.get('/create', util.checkUser,
 function(req, res) {
   res.render('index');
 });
 
-app.get('/links', 
+app.get('/signup', 
+function(req, res) {
+  res.render('signup');
+});
+
+app.get('/login', 
+function(req, res) {
+  res.render('login');
+});
+
+app.get('/links', util.checkUser,
 function(req, res) {
   Links.reset().fetch().then(function(links) {
     res.status(200).send(links.models);
@@ -76,8 +87,50 @@ function(req, res) {
 /************************************************************/
 // Write your authentication routes here
 /************************************************************/
+app.post('/login', 
+function(req, res) {
+  var username = req.body.username;
+  var password = req.body.password;
+  req.session.username = username;
+  var sess = req.session;
+
+  new User({ username: username, password: password }).fetch().then(function(found) {
+    if (found) {
+      res.redirect('/');
+      //res.status(200).send(found.attributes);
+    } else {
+      res.redirect('/login');
+      res.status(200);
+    }
+    res.end();
+  });
+
+  //res.redirect('/');
+  
+  //res.end();
+}); 
 
 
+app.post('/signup', 
+function(req, res) {
+  var username = req.body.username;
+  var password = req.body.password;
+
+  new User({ username: username, password: password }).fetch().then(function(found) {
+    if (found) {
+      res.status(200).send(found.attributes);
+    } else {
+      Users.create({
+        username: username,
+        password: password,
+      })
+      .then(function(data) {
+        res.redirect('/');
+        res.status(200).send(data);
+      });
+    }
+  });
+});
 
 /************************************************************/
 // Handle the wildcard route last - if all other routes fail
