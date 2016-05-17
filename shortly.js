@@ -3,7 +3,9 @@ var util = require('./lib/utility');
 var partials = require('express-partials');
 var bodyParser = require('body-parser');
 var session = require('express-session');
-
+var bcrypt = require('bcrypt-nodejs');
+var KnexSesssionStore = require('???')(session);
+var store = new KnexSesssionStore();
 
 var db = require('./app/config');
 var Users = require('./app/collections/users');
@@ -22,7 +24,11 @@ app.use(bodyParser.json());
 // Parse forms (signup/login)
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(__dirname + '/public'));
-app.use(session({secret: 'confidential'}));
+// app.use(session({secret: 'confidential'}));
+app.use(session({
+  store: new RedisStore,
+  secret: 'c0nf1d3n+!4l'
+}));
 
 
 app.get('/', util.checkUser,
@@ -52,7 +58,7 @@ function(req, res) {
   });
 });
 
-app.post('/links', 
+app.post('/links', util.checkUser,
 function(req, res) {
   var uri = req.body.url;
 
@@ -87,27 +93,27 @@ function(req, res) {
 /************************************************************/
 // Write your authentication routes here
 /************************************************************/
-app.post('/login', 
+app.post('/login',
 function(req, res) {
   var username = req.body.username;
   var password = req.body.password;
-  req.session.username = username;
-  var sess = req.session;
 
-  new User({ username: username, password: password }).fetch().then(function(found) {
-    if (found) {
-      res.redirect('/');
-      //res.status(200).send(found.attributes);
+  new User({ username: username }).fetch().then(function(user) {
+    if (user) {
+      bcrypt.compare(password, user.get('password'), function(err, match) {
+        if (err) {
+          res.redirect('/login');
+        } else {
+          req.session.username = username;
+          res.redirect('/');
+        }
+      });
     } else {
       res.redirect('/login');
       res.status(200);
     }
     res.end();
   });
-
-  //res.redirect('/');
-  
-  //res.end();
 }); 
 
 
@@ -116,17 +122,27 @@ function(req, res) {
   var username = req.body.username;
   var password = req.body.password;
 
-  new User({ username: username, password: password }).fetch().then(function(found) {
+  new User({ username: username }).fetch().then(function(found) {
     if (found) {
-      res.status(200).send(found.attributes);
+      res.status(200);
+      res.redirect('/signup');
     } else {
-      Users.create({
-        username: username,
-        password: password,
-      })
-      .then(function(data) {
-        res.redirect('/');
-        res.status(200).send(data);
+      bcrypt.hash(req.body.password, null, null, function(err, hash) {
+        if (err) {
+          console.log('BCRYPT HASH ERROR:', err);
+          res.status(200);
+          res.redirect('/signup');
+        } else {
+          Users.create({
+            username: username,
+            password: hash
+          })
+          .then(function(user) {
+            req.session.username = username;
+            res.status(200);
+            res.redirect('/');
+          });
+        }
       });
     }
   });
