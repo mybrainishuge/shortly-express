@@ -4,8 +4,8 @@ var partials = require('express-partials');
 var bodyParser = require('body-parser');
 var session = require('express-session');
 var bcrypt = require('bcrypt-nodejs');
-var KnexSesssionStore = require('???')(session);
-var store = new KnexSesssionStore();
+var KnexSessionStore = require('connect-session-knex')(session);
+var store = new KnexSessionStore();
 
 var db = require('./app/config');
 var Users = require('./app/collections/users');
@@ -26,13 +26,15 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(__dirname + '/public'));
 // app.use(session({secret: 'confidential'}));
 app.use(session({
-  store: new RedisStore,
-  secret: 'c0nf1d3n+!4l'
+  store: store,
+  secret: 'c0nf1d3n+!4l',
+  cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 }
 }));
 
 
 app.get('/', util.checkUser,
 function(req, res) {
+  console.log('/ SESSION:', req.session);
   res.render('index');
 });
 
@@ -48,6 +50,7 @@ function(req, res) {
 
 app.get('/login', 
 function(req, res) {
+  req.session.destroy();
   res.render('login');
 });
 
@@ -101,18 +104,22 @@ function(req, res) {
   new User({ username: username }).fetch().then(function(user) {
     if (user) {
       bcrypt.compare(password, user.get('password'), function(err, match) {
-        if (err) {
-          res.redirect('/login');
-        } else {
+        if (match) {
+          console.log('Logging in...');
           req.session.username = username;
+          res.status(200);
           res.redirect('/');
+        }
+        if (err) {
+          console.log('Invalid password');
+          res.redirect('/login');
         }
       });
     } else {
       res.redirect('/login');
       res.status(200);
     }
-    res.end();
+    // res.end();
   });
 }); 
 
