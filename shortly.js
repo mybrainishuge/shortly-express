@@ -28,13 +28,14 @@ app.use(express.static(__dirname + '/public'));
 app.use(session({
   store: store,
   secret: 'c0nf1d3n+!4l',
-  cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 }
+  cookie: { maxAge: 60000 },
+  // cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 }
 }));
 
 
 app.get('/', util.checkUser,
 function(req, res) {
-  console.log('/ SESSION:', req.session);
+  console.log(req.session);
   res.render('index');
 });
 
@@ -50,6 +51,7 @@ function(req, res) {
 
 app.get('/login', 
 function(req, res) {
+  // destroy active session before logging in as different user
   req.session.destroy();
   res.render('login');
 });
@@ -109,8 +111,7 @@ function(req, res) {
           req.session.username = username;
           res.status(200);
           res.redirect('/');
-        }
-        if (err) {
+        } else {
           console.log('Invalid password');
           res.redirect('/login');
         }
@@ -119,7 +120,6 @@ function(req, res) {
       res.redirect('/login');
       res.status(200);
     }
-    // res.end();
   });
 }); 
 
